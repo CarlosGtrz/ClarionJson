@@ -83,10 +83,14 @@ endPos                  LONG
           SELF.HandleStringDelimiter()
         end!if
       of '['
-        SELF.Stack.NextOrEOFExpected = false 
-        SELF.Stack.Next = false
-        SELF.push()
-        SELF.Current.SetObjectType( ObjectType:Array)
+        if SELF.Stack.StringStarted
+          SELF.HandleChar('[')
+        ELSE
+          SELF.Stack.NextOrEOFExpected = false
+          SELF.Stack.Next = false
+          SELF.push()
+          SELF.Current.SetObjectType( ObjectType:Array )
+        end
       of ']' 
         if SELF.Stack.StringStarted
           SELF.HandleChar(']')
@@ -141,9 +145,13 @@ endPos                  LONG
           end!if
         end!If
       of '{{'
-        SELF.Stack.NextOrEOFExpected = false 
-        SELF.Stack.Next = false
-        SELF.Push()
+        if SELF.Stack.StringStarted
+          SELF.HandleChar('{{')
+        ELSE
+          SELF.Stack.NextOrEOFExpected = false 
+          SELF.Stack.Next = false
+          SELF.Push()
+        end
       of ' ' orof chr(9)  !tab
         if SELF.Stack.StringStarted
           SELF.HandleChar(toParse[c])
