@@ -145,13 +145,9 @@ endPos                  LONG
           end!if
         end!If
       of '{{'
-        if SELF.Stack.StringStarted
-          SELF.HandleChar('{{')
-        ELSE
-          SELF.Stack.NextOrEOFExpected = false 
-          SELF.Stack.Next = false
-          SELF.Push()
-        end
+        SELF.Stack.NextOrEOFExpected = false 
+        SELF.Stack.Next = false
+        SELF.Push()
       of ' ' orof chr(9)  !tab
         if SELF.Stack.StringStarted
           SELF.HandleChar(toParse[c])
