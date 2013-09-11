@@ -11,15 +11,19 @@ init                                      procedure(LONG initialSize = 0)
 kill                                      procedure()
 SetSize                                   procedure(LONG pSize)
 Add                                       procedure(STRING s)
+AddLine                                   procedure(STRING s)
 GetBufferLength                           procedure(),LONG
 GetBuffer                                 procedure(LONG fromPos=1),STRING
-GetPartialBuffer                          procedure(LONG fromPos, LONG toPos),STRING
 GetBufferAddress                          procedure(),LONG
+GetPartialBuffer                          procedure(LONG fromPos, LONG toPos),STRING
+SetPartialBuffer                          procedure(LONG fromPos, LONG toPos, STRING str)
 Set                                       procedure(STRING s)
 Reset                                     procedure()
 
 IndexOf                                   procedure(STRING substr,LONG nStep = 1, LONG nStart = 1),LONG
 Replace                                   procedure(STRING toReplace, STRING strReplace)
+Insert                                    procedure(LONG atPos, STRING str)
+Fold                                      procedure(LONG width = 72)
 
 ConvertToUtf8                             procedure(),BYTE
 ConvertFromUtf8                           procedure(),BYTE

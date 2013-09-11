@@ -7,7 +7,7 @@ MB_PRECOMPOSED      EQUATE(1)
 MB_COMPOSITE        EQUATE(2)
 
 SaveFileName   STRING(FILE:MaxFilePath),THREAD
-SaveFile            FILE,DRIVER('DOS'),NAME(SaveFileName),CREATE,PRE(SF)
+SaveFile            FILE,DRIVER('DOS'),NAME(SaveFileName),CREATE,PRE(SF),THREAD
 rec                     record
 Buf                         STRING(1024)
                         end!
@@ -72,19 +72,18 @@ len LONG
 b byte
   CODE
   len = len(s)
-    if SELF.Position + len > SELF.BufferSize
-      SELF.SetSize(SELF.Position + len )
-    end!if
-    !IF SELF.Position = 0
-    !  SELF.Buffer = S
-    !  SELF.Position = LEN
-    !else  
-  !SELF.Buffer = SELF.Buffer[1: SELF.Position] & S
+  if SELF.Position + len > SELF.BufferSize
+    SELF.SetSize(SELF.Position + len )
+  end!if
   if len > 0
     SELF.Buffer[self.Position+1 : SELF.Position + LEN] = s
     SELF.Position += LEN
   end!if
-    !end!If
+
+BufferClass.AddLine     procedure(STRING s)
+crlf STRING('<13,10>')
+  CODE
+  SELF.Add(s & crlf)
 
 BufferClass.Set     procedure(STRING s)
 len   long
@@ -107,6 +106,9 @@ BufferClass.GetBufferLength procedure()
     
 BufferClass.GetBuffer       procedure(LONG fromPos=1)
   CODE
+    if fromPos < 1
+      return ''
+    end
     if SELF.Position = 0
       return ''
     end!If
@@ -127,6 +129,19 @@ BufferClass.GetPartialBuffer    procedure(LONG fromPos, LONG toPos)
       toPos = SELF.Position
     end!if
     return SELF.Buffer[fromPos : toPos]
+
+BufferClass.SetPartialBuffer procedure(LONG fromPos, LONG toPos, STRING str)
+  CODE
+    if SELF.Position = 0
+      return 
+    end!If
+    if fromPos > Self.Position 
+      return 
+    end!if
+    if toPOS > SELF.Position
+      toPos = SELF.Position
+    end!if
+    SELF.Buffer[fromPos : toPos] = str 
 
 BufferClass.GetBufferAddress    procedure()
   CODE
@@ -222,7 +237,7 @@ startPos                LONG
                 end!loop
                 if SELF.GetBufferLength() % 1024 > 0
                     SaveFile.Buf = SELF.Buffer[lines *1024+1 : self.GetBufferLength()]
-                    Add(SaveFile)
+                    Add(SaveFile,SELF.GetBufferLength() % 1024)
                 end!if
                 CLOSE(SaveFile)
                 bResult = true                
@@ -238,7 +253,7 @@ startPos                LONG
 
     CODE
     saveFileName = fileName
-    OPEN(SaveFile)
+    SHARE(SaveFile)
     If ~errorcode()
         SET(SaveFile)
         LOOP 
@@ -251,6 +266,7 @@ startPos                LONG
         CLOSE(SaveFile)
         bResult = true                
     end!if    
+    CLOSE(SaveFile)
     return bResult
         
 BufferClass.IndexOf procedure(STRING substr, LONG nStep = 1, LONG nStart = 1)
@@ -277,4 +293,39 @@ nLen                                      LONG
     end!if
     nStart = nPos + len(strReplace)
     nPos = SELF.IndexOf(toReplace,1,nStart)
-  END!loop    
+  END!loop
+
+BufferClass.Insert          procedure(LONG atPos, STRING str)
+  CODE
+  SELF.Set(SELF.GetPartialBuffer(1,atPos-1) & str & SELF.GetBuffer(atPos))
+
+BufferClass.Fold            procedure(LONG width)
+crlf        STRING('<13,10>')
+original    &STRING
+idx         LONG
+linePos     LONG
+c           STRING(1)
+  CODE
+  if width < 1
+    RETURN
+  end
+  original &= NEW STRING(SELF.GetBufferLength())
+  original = SELF.GetBuffer()
+  SELF.Reset()
+  linePos = 0
+  LOOP idx = 1 TO SIZE(original)
+    c = original[ idx ]
+    if ~INSTRING(c,crlf)
+      if linePos = width
+        SELF.Add(crlf)
+        linePos = 0
+      end
+      linePos += 1
+    end
+    SELF.Add(c)
+    if SELF.GetBuffer(SELF.Position-1) = crlf
+      linePos = 0
+    end
+  end
+  DISPOSE(original)
+
