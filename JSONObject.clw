@@ -1,11 +1,13 @@
   MEMBER
 
   MAP
+GroupFieldsCount PROCEDURE(*GROUP),LONG
   end!map
 
   include('BufferClass.inc'),ONCE
   include('JSONObject.inc'),ONCE
- 
+  include('base64.inc'),ONCE
+
 JSONObject.Construct        procedure()
     CODE
     SELF.Children &= NEW JSONObjectQueue
@@ -25,6 +27,9 @@ JSONObject.Destruct procedure()
 JSONObject.ClearChildren      procedure()
 p                               LONG
   CODE
+  IF SELF.Children &= NULL
+    return
+  .
   LOOP p = 1 to records(SELF.Children)
     GET(SELF.Children,p)
     if ~SELF.Children.ObjectValue &= NULL
@@ -80,7 +85,7 @@ o                               &JSONObject
   o.SetName(pName)
   return o  
   
-JSONObject.Add                procedure(*Group g)
+JSONObject.Add                procedure(*Group g, BYTE omitEmpty = 0)
 o                               &JSONObject
 c                               LONG
 fields                          LONG
@@ -93,12 +98,10 @@ BaseObject                      &JSONObject
 m                               LONG
 qr                              &QUEUE
 b                               BYTE
-addr                            LONG
-addr2                           LONG
 rl                              &LONG
-
 d                               string(20)
-
+isDate                          LONG
+idxDt                           LONG
   CODE
   if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
     SELF.SetObjectType(ObjectType:Object)
@@ -109,7 +112,6 @@ d                               string(20)
     BaseObject &= SELF
   end!if
   c = 0
-  addr = address(g)
   PropertyName &= NEW BufferClass
   LOOP !c = 1 to fields
     c += 1
@@ -117,28 +119,78 @@ d                               string(20)
     if f &= NULL
       BREAK
     end!If
-    addr = what(g,c)
-    addr2 = address(WHAT(g,c))
     if ~ISSTRING(f)
+      if omitEmpty AND f = 0
+        CYCLE
+      .
       lt = LiteralType:Numeric
     ELSE
+      if omitEmpty AND f = ''
+        CYCLE
+      .
       lt = LiteralType:String
     end!if
-    o &= BaseObject.Add()
+    if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
+      SELF.SetObjectType(ObjectType:Object)
+    end!If
+    if SELF.ObjectType = ObjectType:Array
+      BaseObject &= SELF.Add()
+    ELSE
+      BaseObject &= SELF
+    end!if
     PropertyName.Set(WHO(g,c))
     nPos = instring(':',PropertyName.GetBuffer(),1,1)
     if npos > 0
-      o.SetName(PropertyName.GetBuffer(nPos+1))
+      PropertyName.Set(PropertyName.GetBuffer(nPos+1))
     else
-      o.SetName(PropertyName.GetBuffer())
-    end!if    
-
+      PropertyName.Set(PropertyName.GetBuffer())
+    end!if
+    nPos = instring('|JSONBINARY',UPPER(PropertyName.GetBuffer()),1,1)
+    if npos > 0
+      lt = LiteralType:Binary
+      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
+    end!if
+    nPos = instring('|JSONBOOLEAN',UPPER(PropertyName.GetBuffer()),1,1)
+    if npos > 0
+      lt = LiteralType:Boolean
+      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
+    end!if
+    nPos = instring('|JSONDATE',UPPER(PropertyName.GetBuffer()),1,1)
+    if npos > 0
+      lt = LiteralType:DateTime
+      isDate = 1
+      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
+    end!if
+    nPos = instring('|JSONTIME',UPPER(PropertyName.GetBuffer()),1,1)
+    if npos > 0
+      lt = LiteralType:DateTime
+      isDate = 0
+      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
+    end!if
+    if lt = LiteralType:DateTime
+      idxDt = BaseObject.GetIndexOf(PropertyName.GetBuffer())
+      if idxDt
+        o &= BaseObject.Get(idxDt)
+      else
+        o &= BaseObject.Add()
+      end
+    else
+      o &= BaseObject.Add()
+    end
+    o.SetName(PropertyName.GetBuffer())
     if ISGROUP(g,c)
       gr &= GETGROUP(g,c)
-      o.Add(gr)
+      o.Add(gr,omitEmpty)
+      c += GroupFieldsCount(gr)
     else
       if lt = LiteralType:String
         o.SetValue(CLIP(f),lt)
+      elsif lt = LiteralType:DateTime
+        if isDate
+          o.SetDateValue(f)
+        else
+          o.SetTimeValue(f)
+        end
       else
         o.SetValue(f,lt)
       end!if
@@ -147,6 +199,8 @@ d                               string(20)
   DISPOSE(PropertyName)
   f &= NULL
   return SELF
+
+
     
 JSONObject.Add                procedure(*Queue q)
 nRecs                           LONG
@@ -183,7 +237,21 @@ JSONObject.SetValue procedure(STRING pValue,BYTE pLiteralType = LiteralType:Stri
   SELF.ObjectType = ObjectType:Literal
   SELF.ObjectValue.Set(pValue)
   SELF.LiteralType = pLiteralType
-  
+
+JSONObject.SetDateValue       procedure(LONG date)
+  CODE
+  SELF.ObjectType = ObjectType:Literal
+  !0001-01-01T00:00:00
+  SELF.ObjectValue.Set(FORMAT(date,@D10-)&'T'&SUB(SELF.GetValue(),11,8))
+  SELF.LiteralType = LiteralType:DateTime
+
+JSONObject.SetTimeValue       procedure(LONG time)
+  CODE
+  SELF.ObjectType = ObjectType:Literal
+  !0001-01-01T00:00:00
+  SELF.ObjectValue.Set(SUB(SELF.GetValue(),1,10)&'T'&FORMAT(time,@T04))
+  SELF.LiteralType = LiteralType:DateTime
+
 JSONObject.SetValue           procedure(*JSONObject o)
   CODE
   SELF.ClearChildren()
@@ -315,14 +383,71 @@ o                                         &JSONObject
         
   return ''
 
-JSONObject.Stringify procedure(*BufferClass buf, BYTE format = false, LONG level = 0 )
+JSONObject.GetPropertyBooleanValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+  CODE
+  return CHOOSE(LOWER(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed))='true')
+
+JSONObject.GetPropertyBinaryValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,STRING
+o           &JSONObject
+strbin      &STRING
+lenbin      ULONG
+ret         LONG
+buf         BufferClass
+str64       &STRING
+  CODE
+
+  o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
+  if o &= NULL OR NOT o.ObjectValue.GetBufferLength()
+    return ''
+  end
+
+  lenbin = o.ObjectValue.GetBufferLength()
+  strbin &= NEW STRING(lenbin)
+  str64 &= NEW STRING(o.ObjectValue.GetBufferLength())
+  str64 = o.ObjectValue.GetBuffer()
+  ret = base64_decode(strbin,lenbin,str64,o.ObjectValue.GetBufferLength())
+  IF ret = ERR_BASE64_INVALID_CHARACTER
+    DISPOSE(strbin)
+    DISPOSE(str64)
+    RETURN ''
+  .
+  IF ret = ERR_BASE64_BUFFER_TOO_SMALL
+    DISPOSE(strbin)
+    strbin &= NEW STRING( SIZE(lenbin))
+    ret = base64_decode(strbin,lenbin,str64,o.ObjectValue.GetBufferLength())
+  .
+  buf.Set(strbin[1 : lenbin])
+  DISPOSE(strbin)
+  DISPOSE(str64)
+  RETURN buf.GetBuffer()
+
+JSONObject.GetPropertyDateValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+  CODE
+  return DEFORMAT(SUB(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed),1,10),@D10)
+
+JSONObject.GetPropertyTimeValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+  CODE
+  return DEFORMAT(SUB(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed),12,8),@T04)
+
+JSONObject.GetPropertyUtf8Value  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,STRING
+buf  BufferClass
+  CODE
+  buf.Set(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed))
+  if buf.ConvertFromUtf8() then
+    buf.Replace('\n','<10>')
+    buf.Replace('\r','<13>')
+    buf.Replace('\t','<9>')
+    return buf.GetBuffer()
+  .
+  return ''
+
+JSONObject.Stringify procedure(*BufferClass buf, BYTE format = false, LONG level = 0)
 index                 LONG
 L                     LONG
 o                     &JSONObject
   CODE
-       
-    L = SELF.GetLength()
 
+    L = SELF.GetLength()
     if SELF.ObjectType = ObjectType:Array
       buf.Add('[')
     ELSIF SELF.ObjectType = ObjectType:Object
@@ -348,21 +473,29 @@ o                     &JSONObject
           CYCLE
         end!If
         case o.GetObjectType()
-        of ObjectType:Literal  
-            if o.GetLiteralType() = LiteralType:String
+        of ObjectType:Literal
+            if INLIST(o.GetLiteralType(),LiteralType:String,LiteralType:Binary,LiteralType:DateTime)
               buf.Add('"')
             end!If
             case o.GetLiteralType() 
-            of LiteralType:Boolean                
-                buf.Add( CHOOSE( o.GetValue(),'true','false'))
+            of LiteralType:Boolean
+                if NUMERIC(o.GetValue())
+                  buf.Add( CHOOSE(o.GetValue() <> 0,'true','false'))
+                elsif INLIST(LOWER(o.GetValue()),'true','false')
+                  buf.Add(LOWER(o.GetValue()))
+                else
+                  buf.Add( CHOOSE(o.GetValue() <> '','true','false'))
+                .
             of LiteralType:Nil
                 buf.Add('null')
             of LiteralType:String
                 SELF.AddEscapedString(buf,o.GetValue()) 
+            of LiteralType:Binary
+                SELF.AddBase64String(buf,o.GetValue())
             else
                 buf.Add(CLIP(o.GetValue()))
             end!case
-            if o.GetLiteralType() = LiteralType:String
+            if INLIST(o.GetLiteralType(),LiteralType:String,LiteralType:Binary,LiteralType:DateTime)
               buf.Add('"')
             end!If
         of ObjectType:Array orof ObjectType:Object orof ObjectType:ObjectProperty
@@ -419,7 +552,23 @@ TmpBuffer                                 &BufferClass
   end!loop
   buf.Add(TmpBuffer.GetBuffer())                   
   DISPOSE(TmpBuffer)
-            
+
+JSONObject.AddBase64String              procedure(BufferClass buf, STRING toEscape)
+str64 &CSTRING
+ret LONG
+len64 ULONG
+  CODE
+  str64 &= NEW CSTRING( SIZE(toEscape)*1.4+1)
+  len64 = SIZE(str64)
+  ret = base64_encode(str64,len64,toEscape,SIZE(toEscape))
+  IF ret = ERR_BASE64_BUFFER_TOO_SMALL
+    DISPOSE(str64)
+    str64 &= NEW CSTRING( SIZE(len64)+1)
+    ret = base64_encode(str64,len64,toEscape,SIZE(toEscape))
+  .
+  buf.Add(str64[1 : len64])
+  DISPOSE(str64)
+
 JSONObject.FillStructure    procedure(*GROUP g)
 o                     &JSONObject
 c                     LONG
@@ -486,4 +635,15 @@ o                                         &JSONObject
       end!if    
     end!Loop
   end!if
-  
+
+GroupFieldsCount procedure(*GROUP g)
+n LONG
+  CODE
+  n = 1
+  LOOP
+    if not who(g,n+1)
+      BREAK
+    end
+    n += 1
+  .
+  RETURN n
