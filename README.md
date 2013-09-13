@@ -6,7 +6,7 @@ Json serializer and parser for Clarion. Fork of code created by Dries Driessen f
 
 ###BufferClass
 
-- New methods: .AddLine, .SetPartialBuffer(fromPos,toPos,str), .Insert(atPos,str), .Fold(width)
+- New methods: .AddLine, .SetPartialBuffer(fromPos,toPos,str), .Insert(atPos,str), .Fold(width), .GetLines(fromLine,toLine)
 - Some fixes
 
 ###JSONObject
@@ -20,7 +20,7 @@ Json serializer and parser for Clarion. Fork of code created by Dries Driessen f
 
 ###JSONHandler
 
-- Fix for handling '[' and '{'
+- Fix for handling '['
 
 Check [commits](https://github.com/CarlosGtrz/ClarionJson/commits/master) for details.
 

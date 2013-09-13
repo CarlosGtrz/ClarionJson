@@ -24,6 +24,7 @@ IndexOf                                   procedure(STRING substr,LONG nStep = 1
 Replace                                   procedure(STRING toReplace, STRING strReplace)
 Insert                                    procedure(LONG atPos, STRING str)
 Fold                                      procedure(LONG width = 72)
+GetLines                                  procedure(LONG fromLine,LONG toLine),STRING
 
 ConvertToUtf8                             procedure(),BYTE
 ConvertFromUtf8                           procedure(),BYTE

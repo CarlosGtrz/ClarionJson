@@ -6,6 +6,8 @@ CP_UTF8                         EQUATE(65001)
 MB_PRECOMPOSED      EQUATE(1)
 MB_COMPOSITE        EQUATE(2)
 
+crlf EQUATE('<13,10>')
+
 SaveFileName   STRING(FILE:MaxFilePath),THREAD
 SaveFile            FILE,DRIVER('DOS'),NAME(SaveFileName),CREATE,PRE(SF),THREAD
 rec                     record
@@ -81,7 +83,6 @@ b byte
   end!if
 
 BufferClass.AddLine     procedure(STRING s)
-crlf STRING('<13,10>')
   CODE
   SELF.Add(s & crlf)
 
@@ -119,6 +120,12 @@ BufferClass.GetBuffer       procedure(LONG fromPos=1)
 
 BufferClass.GetPartialBuffer    procedure(LONG fromPos, LONG toPos)
   CODE
+    if fromPos < 1 or toPos < 1
+      return ''
+    end
+    if toPos < fromPos
+      return ''
+    .
     if SELF.Position = 0
       return ''
     end!If
@@ -278,54 +285,79 @@ r                                         LONG
 nStart                                    LONG
 nPos                                      LONG
 nLen                                      LONG
-  CODE
-  nStart = 1
-  nLen = LEN(toReplace)
-  if nLen = 0
-    RETURN
-  end!
-  nPos = SELF.IndexOf(toReplace,1,nStart)
-  LOOP WHILE nPos > 0
-    if nPos = 1
-      SELF.Set(strReplace & SELF.GetBuffer(nLen+1))
-    else
-      SELF.Set(SELF.GetPartialBuffer(1,nPos-1) & strReplace & SELF.GetBuffer(nPos+nLen))
-    end!if
-    nStart = nPos + len(strReplace)
+    CODE
+    nStart = 1
+    nLen = LEN(toReplace)
+    if nLen = 0
+      RETURN
+    end!
     nPos = SELF.IndexOf(toReplace,1,nStart)
-  END!loop
+    LOOP WHILE nPos > 0
+      if nPos = 1
+        SELF.Set(strReplace & SELF.GetBuffer(nLen+1))
+      else
+        SELF.Set(SELF.GetPartialBuffer(1,nPos-1) & strReplace & SELF.GetBuffer(nPos+nLen))
+      end!if
+      nStart = nPos + len(strReplace)
+      nPos = SELF.IndexOf(toReplace,1,nStart)
+    END!loop
 
 BufferClass.Insert          procedure(LONG atPos, STRING str)
-  CODE
-  SELF.Set(SELF.GetPartialBuffer(1,atPos-1) & str & SELF.GetBuffer(atPos))
+    CODE
+    SELF.Set(SELF.GetPartialBuffer(1,atPos-1) & str & SELF.GetBuffer(atPos))
 
 BufferClass.Fold            procedure(LONG width)
-crlf        STRING('<13,10>')
 original    &STRING
 idx         LONG
 linePos     LONG
 c           STRING(1)
-  CODE
-  if width < 1
-    RETURN
-  end
-  original &= NEW STRING(SELF.GetBufferLength())
-  original = SELF.GetBuffer()
-  SELF.Reset()
-  linePos = 0
-  LOOP idx = 1 TO SIZE(original)
-    c = original[ idx ]
-    if ~INSTRING(c,crlf)
-      if linePos = width
-        SELF.Add(crlf)
+    CODE
+    if width < 1
+      RETURN
+    end
+    original &= NEW STRING(SELF.GetBufferLength())
+    original = SELF.GetBuffer()
+    SELF.Reset()
+    linePos = 0
+    LOOP idx = 1 TO SIZE(original)
+      c = original[ idx ]
+      if ~INSTRING(c,crlf)
+        if linePos = width
+          SELF.Add(crlf)
+          linePos = 0
+        end
+        linePos += 1
+      end
+      SELF.Add(c)
+      if SELF.GetBuffer(SELF.Position-1) = crlf
         linePos = 0
       end
-      linePos += 1
     end
-    SELF.Add(c)
-    if SELF.GetBuffer(SELF.Position-1) = crlf
-      linePos = 0
-    end
-  end
-  DISPOSE(original)
+    DISPOSE(original)
 
+BufferClass.GetLines        procedure(LONG fromLine,LONG toLine)!,STRING
+idx LONG
+lineNumber LONG
+fromPos LONG
+toPos LONG
+    CODE
+    if fromLine > toLine
+      return ''
+    end
+    lineNumber = 1
+    fromPos = 0
+    toPos = 0
+    LOOP idx = 1 TO SELF.GetBufferLength()
+      if NOT fromPos AND lineNumber = fromLine
+        fromPos = idx 
+      end
+      if SELF.GetPartialBuffer(idx-1,idx) = crlf
+        if lineNumber = toLine
+          toPos = idx - 2
+          break
+        end
+        lineNumber += 1
+      end
+      toPos = idx
+    end
+    RETURN SELF.GetPartialBuffer(fromPos,toPos)
