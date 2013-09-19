@@ -61,7 +61,6 @@ pos                   LONG
 Length                LONG
 c                     LONG
 endPos                  LONG
-
   CODE
    
     SELF.Reset()
@@ -75,11 +74,11 @@ endPos                  LONG
       if SELF.EOF
         BREAK
       end!if
-      
+
       case toParse[c]
       of '"' 
         SELF.Stack.Next = false
-        if c = 1 or toParse[c-1] <> '\' 
+        if c = 1 or (c > 1 and toParse[c-1] <> '\')
           SELF.HandleStringDelimiter()
         end!if
       of '['
@@ -145,9 +144,13 @@ endPos                  LONG
           end!if
         end!If
       of '{{'
-        SELF.Stack.NextOrEOFExpected = false 
-        SELF.Stack.Next = false
-        SELF.Push()
+        if c > 1 and SELF.Stack.StringStarted
+          SELF.HandleChar(toParse[c])
+        ELSE
+          SELF.Stack.NextOrEOFExpected = false
+          SELF.Stack.Next = false
+          SELF.Push()
+        end!If
       of ' ' orof chr(9)  !tab
         if SELF.Stack.StringStarted
           SELF.HandleChar(toParse[c])

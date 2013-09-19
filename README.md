@@ -20,7 +20,7 @@ Json serializer and parser for Clarion. Fork of code created by Dries Driessen f
 
 ###JSONHandler
 
-- Fix for handling '['
+- Fix for handling '[' and '{'
 
 Check [commits](https://github.com/CarlosGtrz/ClarionJson/commits/master) for details.
 
