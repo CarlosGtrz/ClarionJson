@@ -34,6 +34,7 @@ JSONHandler.Reset   procedure()
     CODE
     SELF.CreatejObject()
     SELF.IsFirst = TRUE
+    SELF.EOF = FALSE
     SELF.ResetStack()
     
 JSONHandler.ResetStack        procedure()
