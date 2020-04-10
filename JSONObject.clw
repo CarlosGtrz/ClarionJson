@@ -101,6 +101,7 @@ b                               BYTE
 rl                              &LONG
 d                               string(20)
 isDate                          LONG
+isTimeZone                      LONG
 idxDt                           LONG
   CODE
   if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
@@ -119,24 +120,11 @@ idxDt                           LONG
     if f &= NULL
       BREAK
     end!If
+
     if ~ISSTRING(f)
-      if omitEmpty AND f = 0
-        CYCLE
-      .
       lt = LiteralType:Numeric
     ELSE
-      if omitEmpty AND f = ''
-        CYCLE
-      .
       lt = LiteralType:String
-    end!if
-    if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
-      SELF.SetObjectType(ObjectType:Object)
-    end!If
-    if SELF.ObjectType = ObjectType:Array
-      BaseObject &= SELF.Add()
-    ELSE
-      BaseObject &= SELF
     end!if
     PropertyName.Set(WHO(g,c))
     nPos = instring(':',PropertyName.GetBuffer(),1,1)
@@ -159,13 +147,33 @@ idxDt                           LONG
     if npos > 0
       lt = LiteralType:DateTime
       isDate = 1
+      isTimeZone = 0
       PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
     end!if
     nPos = instring('|JSONTIME',UPPER(PropertyName.GetBuffer()),1,1)
     if npos > 0
       lt = LiteralType:DateTime
       isDate = 0
+      isTimeZone = 0
       PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
+    end!if
+    nPos = instring('|JSONTZ',UPPER(PropertyName.GetBuffer()),1,1)
+    if npos > 0
+      lt = LiteralType:DateTime
+      isDate = 0
+      isTimeZone = 1
+      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
+    end!if    
+    if (lt = LiteralType:Numeric OR lt = LiteralType:DateTime) AND f = 0 AND omitEmpty THEN CYCLE.
+    if (lt = LiteralType:String) AND f = '' THEN CYCLE.
+
+    if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
+      SELF.SetObjectType(ObjectType:Object)
+    end!If
+    if SELF.ObjectType = ObjectType:Array
+      BaseObject &= SELF.Add()
+    ELSE
+      BaseObject &= SELF
     end!if
     if lt = LiteralType:DateTime
       idxDt = BaseObject.GetIndexOf(PropertyName.GetBuffer())
@@ -188,6 +196,8 @@ idxDt                           LONG
       elsif lt = LiteralType:DateTime
         if isDate
           o.SetDateValue(f)
+        elsif isTimeZone
+          o.SetTimeZoneValue(f)
         else
           o.SetTimeValue(f)
         end
@@ -252,7 +262,19 @@ JSONObject.SetTimeValue       procedure(LONG time)
   SELF.ObjectValue.Set(SUB(SELF.GetValue(),1,10)&'T'&FORMAT(time,@T04))
   SELF.LiteralType = LiteralType:DateTime
 
-JSONObject.SetValue           procedure(*JSONObject o)
+JSONObject.SetTimeZoneValue procedure(LONG timeZone)
+  CODE
+  SELF.ObjectType = ObjectType:Literal
+  !0001-01-01T00:00:00-00:00
+  SELF.ObjectValue.Set(SUB(SELF.GetValue(),1,19) & |
+      CHOOSE(timeZone<0,'-','+') & |
+      FORMAT(INT(ABS(timeZone)/100),@N02) & |
+      ':' & |
+      FORMAT(ABS(timeZone)%100,@N02) |
+          )
+  SELF.LiteralType = LiteralType:DateTime
+
+JSONObject.SetValue procedure(*JSONObject o)
   CODE
   SELF.ClearChildren()
   SELF.SetObjectType(ObjectType:ObjectProperty)

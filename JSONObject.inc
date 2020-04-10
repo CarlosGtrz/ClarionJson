@@ -1,7 +1,7 @@
   include('BufferClass.inc'),ONCE
 
 JSONObjectQueue     Queue,TYPE,PRE(JQ)
-ObjectValue                 &JSONObject
+ObjectValue           &JSONObject
                     end!queue
 
                     itemize(0),PRE(ObjectType)
@@ -30,7 +30,7 @@ ObjectValue           &BufferClass,PROTECTED
 ObjectName            &BufferClass,PROTECTED
 ToStringBuffer        &BufferClass,PROTECTED
 
-Construct               procedure() !added to eliminate the use of init and kill
+Construct             procedure() !added to eliminate the use of init and kill
 Destruct              procedure()
 ClearChildren         procedure()
 init                  procedure()
@@ -38,21 +38,22 @@ kill                  procedure()
 GetParentObject       procedure(),*JSONObject
 SetParentObject       procedure(*JSONObject parentobject)
 
-Add                     procedure(),*JSONObject
-Add                     procedure(*JSONObject o)
+Add                   procedure(),*JSONObject
+Add                   procedure(*JSONObject o)
 Add                   procedure(STRING pName, STRING pValue, BYTE pType = LiteralType:String),*JSONObject,PROC
-Add                     procedure(STRING pName),*JSONObject,PROC
-Add                     procedure(*Group g, BYTE omitEmpty = 0),*JSONObject,PROC
-Add                     procedure(*Queue q),*JSONObject,PROC
+Add                   procedure(STRING pName),*JSONObject,PROC
+Add                   procedure(*Group g, BYTE omitEmpty = 0),*JSONObject,PROC
+Add                   procedure(*Queue q),*JSONObject,PROC
 
-AddItem                 procedure(*JSONObject pItem),*JSONObject
-AddItem                 procedure(),*JSONObject
+AddItem               procedure(*JSONObject pItem),*JSONObject
+AddItem               procedure(),*JSONObject
 
 SetObjectType         procedure(BYTE objectType)
 GetObjectType         procedure(),BYTE
 SetValue              procedure(STRING s, BYTE pLiteralType = LiteralType:String)
 SetDateValue          procedure(LONG date)
 SetTimeValue          procedure(LONG time)
+SetTimeZoneValue      procedure(LONG timeZone)
 SetValue              procedure(*JSONObject o)
 Nullify               procedure(),*JSONObject,PROC 
 GetValue              procedure(),STRING
@@ -66,8 +67,8 @@ GetLength             procedure(),LONG
 Get                   procedure(LONG index,BYTE clearReference = false),*JSONObject  !Mind you: clearReference breaks the object! Only do this when you know what you're doing
 GetIndexOf            procedure(STRING propName),LONG
 GetPropertyValue      procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
-GetPropertyBooleanValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
-GetPropertyBinaryValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
+GetPropertyBooleanValue   procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
+GetPropertyBinaryValue    procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
 GetPropertyDateValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
 GetPropertyTimeValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
 GetPropertyUtf8Value  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
