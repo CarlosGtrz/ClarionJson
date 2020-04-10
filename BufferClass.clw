@@ -278,7 +278,7 @@ startPos                LONG
         
 BufferClass.IndexOf procedure(STRING substr, LONG nStep = 1, LONG nStart = 1)
     CODE
-    return INSTRING(substr,SELF.Buffer,nStep,nStart)
+    return INSTRING(substr,SELF.GetBuffer(),nStep,nStart)
     
 BufferClass.Replace                     procedure(STRING toReplace, STRING strReplace)
 r                                         LONG
@@ -361,3 +361,39 @@ toPos LONG
       toPos = idx
     end
     RETURN SELF.GetPartialBuffer(fromPos,toPos)
+
+BufferClass.ConvertToValidFileName  procedure(<STRING replaceWith>, LONG replaceSpaces, LONG replacePathSeparators, LONG replaceListSeparators)
+repl STRING(1)
+  CODE
+  repl = ' '
+  IF NOT OMITTED(replaceWith)
+    repl = replaceWith
+  .
+  IF replaceSpaces 
+    IF NOT repl 
+      repl = '-'
+    .    
+    SELF.Replace(' ',repl)
+  .  
+  SELF.Replace('<',repl)
+  SELF.Replace('>',repl)
+  SELF.Replace('"',repl)
+  SELF.Replace('|',repl)
+  SELF.Replace('?',repl)
+  SELF.Replace('*',repl)
+  IF replacePathSeparators
+    SELF.Replace(':',repl)
+    SELF.Replace('/',repl)
+    SELF.Replace('\',repl)
+  .  
+  IF replaceListSeparators
+    SELF.Replace(',',repl)
+    SELF.Replace(';',repl)
+  .
+  
+  
+  
+  
+  
+
+    

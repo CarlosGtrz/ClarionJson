@@ -31,4 +31,7 @@ ConvertFromUtf8                           procedure(),BYTE
 
 ToFile                                    procedure(STRING fileName),BYTE,PROC
 FromFile                                  procedure(STRING fileName),BYTE,PROC
+
+ConvertToValidFileName                    procedure(<STRING replaceWith>, LONG replaceSpaces = 0, LONG replacePathSeparators = 0, LONG replaceListSeparators = 0)
+
                                         end!class
