@@ -1,7 +1,7 @@
 
   include('JSONObject.inc'),ONCE
 
-StackQ              Queue,type,pre(SQ)
+StackQJ             Queue,type,pre(SQJ)
 PropertyStarted         BYTE
 PropertyNameStarted     BYTE
 PropertyValueStarted    BYTE
@@ -21,7 +21,7 @@ EOF                     BYTE
 Error                   String(250)
 StackRecordCount        LONG
 
-Stack                   &StackQ
+Stack                   &StackQJ
 
 jObject                 &JSONObject
 Current                 &JSONObject

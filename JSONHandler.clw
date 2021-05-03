@@ -12,7 +12,7 @@ JSONHandler.Construct       procedure()
     CODE
     SELF.jObject &= NULL
     SELF.Current &= NULL
-    SELF.Stack &= NEW StackQ 
+    SELF.Stack &= NEW StackQJ
          
 JSONHandler.Destruct        procedure()
     CODE
