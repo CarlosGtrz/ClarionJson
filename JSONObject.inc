@@ -18,7 +18,11 @@ Numeric               EQUATE()
 Boolean               EQUATE()
 Binary                EQUATE()
 DateTime              EQUATE()
+DateTimeDatePart      EQUATE()
+DateTimeTimePart      EQUATE()
+DateTimeTimeZonePart  EQUATE()
 Nil                   EQUATE()
+OmitField             EQUATE()
                     end!itemize
 
 JSONObject          CLASS,TYPE,module('JSONObject.CLW'),LINK('JSONObject.CLW',1),DLL(0)
@@ -26,9 +30,8 @@ ObjectType            BYTE,PROTECTED
 LiteralType           BYTE,PROTECTED
 Children              &JSONObjectQueue,PROTECTED
 ParentObject          &JSONObject,PROTECTED     
-ObjectValue           &BufferClass,PROTECTED
-ObjectName            &BufferClass,PROTECTED
-ToStringBuffer        &BufferClass,PROTECTED
+ObjectValue           &STRING,PROTECTED
+ObjectName            &STRING,PROTECTED
 
 Construct             procedure() !added to eliminate the use of init and kill
 Destruct              procedure()
@@ -42,7 +45,8 @@ Add                   procedure(),*JSONObject
 Add                   procedure(*JSONObject o)
 Add                   procedure(STRING pName, STRING pValue, BYTE pType = LiteralType:String),*JSONObject,PROC
 Add                   procedure(STRING pName),*JSONObject,PROC
-Add                   procedure(*Group g, BYTE omitEmpty = 0),*JSONObject,PROC
+Add                   procedure(*Group g, BYTE omitEmpty = 1),*JSONObject,PROC
+AddGroup              procedure(*Group g, BYTE omitEmpty = 1),*JSONObject,PROC
 Add                   procedure(*Queue q),*JSONObject,PROC
 
 AddItem               procedure(*JSONObject pItem),*JSONObject
@@ -56,7 +60,16 @@ SetTimeValue          procedure(LONG time)
 SetTimeZoneValue      procedure(LONG timeZone)
 SetValue              procedure(*JSONObject o)
 Nullify               procedure(),*JSONObject,PROC 
+
 GetValue              procedure(),STRING
+GetBooleanValue       procedure(),LONG
+GetBinaryValue        procedure(),STRING
+GetBinaryValueLength  procedure(),LONG
+GetDateValue          procedure(),LONG
+GetTimeValue          procedure(),LONG
+GetTimeZoneValue      procedure(),LONG
+GetUtf8Value          procedure(),STRING
+
 DeleteProperty        procedure(STRING propName),BYTE,PROC
 
 SetName               procedure(STRING s)
@@ -66,11 +79,13 @@ GetLiteralType        procedure(),BYTE
 GetLength             procedure(),LONG
 Get                   procedure(LONG index,BYTE clearReference = false),*JSONObject  !Mind you: clearReference breaks the object! Only do this when you know what you're doing
 GetIndexOf            procedure(STRING propName),LONG
+
 GetPropertyValue      procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
 GetPropertyBooleanValue   procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
 GetPropertyBinaryValue    procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
 GetPropertyDateValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
 GetPropertyTimeValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
+GetPropertyTimeZoneValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),LONG
 GetPropertyUtf8Value  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999),STRING
 
 GetObjectByName       procedure(STRING  propertyName, LONG nDeeperLevelsAllowed = 99999 ),*JSONObject !0 = no deeper levels
@@ -79,7 +94,10 @@ StringifyToFile       procedure(STRING fileName, BYTE format = false)
 AddEscapedString      procedure(*BufferClass buf, STRING toEscape)
 AddBase64String       procedure(*BufferClass buf, STRING toEscape)
 
-FillStructure         procedure(*GROUP g)
-FillStructure         procedure(*QUEUE q)
+FillStructure         procedure(*GROUP g,LONG pUtf8 = 1)
+FillGroup             procedure(*GROUP g,LONG pUtf8 = 1)
+FillStructure         procedure(*QUEUE q,LONG pUtf8 = 1)
+FillQueue             procedure(*QUEUE q,LONG pUtf8 = 1)
+
 
                     end!class

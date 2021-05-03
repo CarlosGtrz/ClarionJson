@@ -1,7 +1,9 @@
   MEMBER
 
   MAP
-GroupFieldsCount PROCEDURE(*GROUP),LONG
+GroupFieldsCount    PROCEDURE(*GROUP grp),LONG
+WhoLiteralType     PROCEDURE(ANY pVal,BufferClass pName),LONG
+FindAndDeleteAttribute  PROCEDURE(BufferClass pBuf,STRING pAttr),LONG
   end!map
 
   include('BufferClass.inc'),ONCE
@@ -12,9 +14,8 @@ JSONObject.Construct        procedure()
     CODE
     SELF.Children &= NEW JSONObjectQueue
     SELF.ObjectType = ObjectType:None
-    SELF.ObjectValue &= NEW BufferClass
-    SELF.ObjectName &= NEW BufferClass
-    !SELF.ToStringBuffer &= NEW BufferClass
+    SELF.ObjectValue &= NEW STRING(1)
+    SELF.ObjectName &= NEW STRING(1)
     
 JSONObject.Destruct procedure()
   CODE
@@ -22,7 +23,6 @@ JSONObject.Destruct procedure()
   DISPOSE(SELF.Children)
   DISPOSE(SELF.ObjectValue)
   DISPOSE(SELF.ObjectName)
-  !DISPOSE(SELF.ToStringBuffer)
 
 JSONObject.ClearChildren      procedure()
 p                               LONG
@@ -100,8 +100,6 @@ qr                              &QUEUE
 b                               BYTE
 rl                              &LONG
 d                               string(20)
-isDate                          LONG
-isTimeZone                      LONG
 idxDt                           LONG
   CODE
   if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
@@ -116,56 +114,18 @@ idxDt                           LONG
   PropertyName &= NEW BufferClass
   LOOP !c = 1 to fields
     c += 1
+        
     f &= WHAT(g,c)
-    if f &= NULL
-      BREAK
-    end!If
+    if f &= NULL then break.
+    
+    IF HOWMANY(g,c) > 1 THEN CYCLE. !Skip dim fields
 
-    if ~ISSTRING(f)
-      lt = LiteralType:Numeric
-    ELSE
-      lt = LiteralType:String
-    end!if
     PropertyName.Set(WHO(g,c))
-    nPos = instring(':',PropertyName.GetBuffer(),1,1)
-    if npos > 0
-      PropertyName.Set(PropertyName.GetBuffer(nPos+1))
-    else
-      PropertyName.Set(PropertyName.GetBuffer())
-    end!if
-    nPos = instring('|JSONBINARY',UPPER(PropertyName.GetBuffer()),1,1)
-    if npos > 0
-      lt = LiteralType:Binary
-      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
-    end!if
-    nPos = instring('|JSONBOOLEAN',UPPER(PropertyName.GetBuffer()),1,1)
-    if npos > 0
-      lt = LiteralType:Boolean
-      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
-    end!if
-    nPos = instring('|JSONDATE',UPPER(PropertyName.GetBuffer()),1,1)
-    if npos > 0
-      lt = LiteralType:DateTime
-      isDate = 1
-      isTimeZone = 0
-      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
-    end!if
-    nPos = instring('|JSONTIME',UPPER(PropertyName.GetBuffer()),1,1)
-    if npos > 0
-      lt = LiteralType:DateTime
-      isDate = 0
-      isTimeZone = 0
-      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
-    end!if
-    nPos = instring('|JSONTZ',UPPER(PropertyName.GetBuffer()),1,1)
-    if npos > 0
-      lt = LiteralType:DateTime
-      isDate = 0
-      isTimeZone = 1
-      PropertyName.Set(PropertyName.GetPartialBuffer(1,nPos-1))
-    end!if    
-    if (lt = LiteralType:Numeric OR lt = LiteralType:DateTime) AND f = 0 AND omitEmpty THEN CYCLE.
-    if (lt = LiteralType:String) AND f = '' THEN CYCLE.
+    lt = WhoLiteralType(f,PropertyName)
+    
+    if lt = LiteralType:OmitField THEN CYCLE.    
+    if omitEmpty AND (lt = LiteralType:Numeric OR INLIST(lt,LiteralType:DateTime,LiteralType:DateTimeDatePart,LiteralType:DateTimeTimePart,LiteralType:DateTimeTimeZonePart)) AND f = 0 THEN CYCLE.
+    if omitEmpty AND lt = LiteralType:String AND f = '' THEN CYCLE.    
 
     if SELF.ObjectType = ObjectType:None OR SELF.ObjectType = ObjectType:Literal
       SELF.SetObjectType(ObjectType:Object)
@@ -175,7 +135,7 @@ idxDt                           LONG
     ELSE
       BaseObject &= SELF
     end!if
-    if lt = LiteralType:DateTime
+    if inlist(lt,LiteralType:DateTime,LiteralType:DateTimeDatePart,LiteralType:DateTimeTimePart,LiteralType:DateTimeTimeZonePart)
       idxDt = BaseObject.GetIndexOf(PropertyName.GetBuffer())
       if idxDt
         o &= BaseObject.Get(idxDt)
@@ -190,28 +150,29 @@ idxDt                           LONG
       gr &= GETGROUP(g,c)
       o.Add(gr,omitEmpty)
       c += GroupFieldsCount(gr)
-    else
-      if lt = LiteralType:String
-        o.SetValue(CLIP(f),lt)
-      elsif lt = LiteralType:DateTime
-        if isDate
+    else 
+      case lt 
+        of LiteralType:String
+          o.SetValue(CLIP(f),lt)
+        of LiteralType:DateTimeDatePart
           o.SetDateValue(f)
-        elsif isTimeZone
-          o.SetTimeZoneValue(f)
-        else
+        of LiteralType:DateTimeTimePart
           o.SetTimeValue(f)
-        end
-      else
-        o.SetValue(f,lt)
-      end!if
+        of LiteralType:DateTimeTimeZonePart
+          o.SetTimeZoneValue(f)
+        else          
+          o.SetValue(f,lt)
+      end!case      
     end!If
   end!Loop
   DISPOSE(PropertyName)
   f &= NULL
   return SELF
 
-
-    
+JSONObject.AddGroup procedure(*Group g, BYTE omitEmpty = 0)
+  CODE
+  RETURN SELF.Add(g,omitEmpty)
+  
 JSONObject.Add                procedure(*Queue q)
 nRecs                           LONG
 r                               LONG
@@ -245,34 +206,36 @@ oRet &JSONObject
 JSONObject.SetValue procedure(STRING pValue,BYTE pLiteralType = LiteralType:String)
   CODE
   SELF.ObjectType = ObjectType:Literal
-  SELF.ObjectValue.Set(pValue)
+  IF NOT SELF.ObjectValue &= NULL
+    DISPOSE(SELF.ObjectValue)
+  END  
+  SELF.ObjectValue &= NEW STRING(SIZE(pValue))
+  SELF.ObjectValue = pValue
   SELF.LiteralType = pLiteralType
 
 JSONObject.SetDateValue       procedure(LONG date)
   CODE
-  SELF.ObjectType = ObjectType:Literal
   !0001-01-01T00:00:00
-  SELF.ObjectValue.Set(FORMAT(date,@D10-)&'T'&SUB(SELF.GetValue(),11,8))
-  SELF.LiteralType = LiteralType:DateTime
+  IF SUB(SELF.GetValue(),11,8)
+    SELF.SetValue(FORMAT(date,@D10-)&'T'&SUB(SELF.GetValue(),11,8),LiteralType:DateTime)
+  ELSE
+    SELF.SetValue(FORMAT(date,@D10-))
+  .  
 
 JSONObject.SetTimeValue       procedure(LONG time)
   CODE
-  SELF.ObjectType = ObjectType:Literal
   !0001-01-01T00:00:00
-  SELF.ObjectValue.Set(SUB(SELF.GetValue(),1,10)&'T'&FORMAT(time,@T04))
-  SELF.LiteralType = LiteralType:DateTime
+  SELF.SetValue(SUB(SELF.GetValue(),1,10)&'T'&FORMAT(time,@T04),LiteralType:DateTime)
 
 JSONObject.SetTimeZoneValue procedure(LONG timeZone)
   CODE
-  SELF.ObjectType = ObjectType:Literal
   !0001-01-01T00:00:00-00:00
-  SELF.ObjectValue.Set(SUB(SELF.GetValue(),1,19) & |
+  SELF.SetValue(SUB(SELF.GetValue(),1,19) & |
       CHOOSE(timeZone<0,'-','+') & |
       FORMAT(INT(ABS(timeZone)/100),@N02) & |
       ':' & |
       FORMAT(ABS(timeZone)%100,@N02) |
-          )
-  SELF.LiteralType = LiteralType:DateTime
+    ,LiteralType:DateTime)
 
 JSONObject.SetValue procedure(*JSONObject o)
   CODE
@@ -307,15 +270,15 @@ JSONObject.GetLiteralType   procedure()
     
 JSONObject.SetName  procedure(STRING s)
   CODE
-    SELF.ObjectName.Set(s)
-    !return SELF
+  if not self.ObjectName &= NULL
+    DISPOSE(SELF.ObjectName)
+  end      
+  SELF.ObjectName &= NEW STRING(SIZE(s))
+  SELF.ObjectName = s
 
 JSONObject.GetName  procedure()
   CODE
-  IF SELF.ObjectName &= NULL
-    return '' 
-  end!if
-  return SELF.ObjectName.GetBuffer()
+  return SELF.ObjectName
  
 JSONObject.GetLength    procedure()
   CODE
@@ -335,20 +298,20 @@ o &JSONObject
   end!if
   return o
 
-JSONObject.GetIndexOf       procedure(STRING propname)
-p                               LONG
-r                               LONG(0)
+JSONObject.GetIndexOf   procedure(STRING propname)
+p                         LONG
+r                         LONG(0)
 
   CODE
-    propname = UPPER(propname)
-    LOOP p = 1 to SELF.GetLength()
-      GET(SELF.Children,p)
-      if UPPER(SELF.Children.ObjectValue.GetName()) = propname
-            r = p 
-            break
-      end!if
-    end!loop
-    return r
+  propname = UPPER(propname)
+  LOOP p = 1 to SELF.GetLength()
+    GET(SELF.Children,p)
+    if UPPER(SELF.Children.ObjectValue.GetName()) = propname
+      r = p 
+      break
+    end!if
+  end!loop
+  return r
 
 JSONOBject.DeleteProperty               procedure(STRING propName)
 bRet                                      BYTE
@@ -368,9 +331,69 @@ i                                         LONG
   
 JSONObject.GetValue procedure()
   CODE
-  return SELF.ObjectValue.GetBuffer()
-        
-JSONObject.GetObjectByName              procedure(STRING  propertyName, LONG nDeeperLevelsAllowed = 99999 ) !0 = no deeper levels
+  return SELF.ObjectValue
+
+JSONObject.GetBooleanValue  procedure()
+  CODE
+  return CHOOSE(LOWER(SELF.GetValue())='true')
+  
+JSONObject.GetDateValue  procedure()
+  CODE
+  return DEFORMAT(SUB(SELF.GetValue(),1,10),@D10)
+
+JSONObject.GetTimeValue procedure()
+  CODE  
+  return DEFORMAT(SUB(SELF.GetValue(),12,8),@T04)
+
+JSONObject.GetTimeZoneValue procedure()
+buf BufferClass
+  CODE
+  buf.Set(DEFORMAT(SUB(SELF.GetValue(),20,6),@D10))
+  buf.Replace(':','')
+  return buf.GetBuffer()
+
+JSONObject.GetBinaryValue  procedure()
+strbin                        &STRING
+lenbin                        ULONG
+ret                           LONG
+buf                           BufferClass
+str64                         &STRING
+  CODE
+  lenbin = SIZE(SELF.ObjectValue)
+  strbin &= NEW STRING(lenbin)
+  ret = base64_decode(strbin,lenbin,SELF.ObjectValue,SIZE(SELF.ObjectValue))
+  IF ret = ERR_BASE64_INVALID_CHARACTER
+    DISPOSE(strbin)
+    DISPOSE(str64)
+    RETURN ''
+  .
+  IF ret = ERR_BASE64_BUFFER_TOO_SMALL
+    DISPOSE(strbin)
+    strbin &= NEW STRING( SIZE(lenbin))
+    ret = base64_decode(strbin,lenbin,SELF.ObjectValue,SIZE(SELF.ObjectValue))
+  .
+  buf.Set(strbin[1 : lenbin])
+  DISPOSE(strbin)
+  DISPOSE(str64)
+  RETURN buf.GetBuffer()
+
+JSONObject.GetBinaryValueLength procedure()
+  CODE
+  RETURN SIZE(SELF.ObjectValue)
+
+JSONObject.GetUtf8Value  procedure()  
+buf                 BufferClass
+  CODE
+  buf.Set(SELF.GetValue())
+  if buf.ConvertFromUtf8() then
+    buf.Replace('\n','<10>')
+    buf.Replace('\r','<13>')
+    buf.Replace('\t','<9>')
+    return buf.GetBuffer()
+  .
+  return ''
+
+JSONObject.GetObjectByName              procedure(STRING propertyName, LONG nDeeperLevelsAllowed = 99999 ) !0 = no deeper levels
 p                                         LONG
 bFound                                    BYTE
 c                                         LONG
@@ -406,61 +429,57 @@ o                                         &JSONObject
   return ''
 
 JSONObject.GetPropertyBooleanValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+o                                     &JSONObject
   CODE
-  return CHOOSE(LOWER(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed))='true')
-
-JSONObject.GetPropertyBinaryValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,STRING
-o           &JSONObject
-strbin      &STRING
-lenbin      ULONG
-ret         LONG
-buf         BufferClass
-str64       &STRING
-  CODE
-
   o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
-  if o &= NULL OR NOT o.ObjectValue.GetBufferLength()
-    return ''
+  if ~o &= NULL
+    return o.GetBooleanValue()
   end
+  return 0
 
-  lenbin = o.ObjectValue.GetBufferLength()
-  strbin &= NEW STRING(lenbin)
-  str64 &= NEW STRING(o.ObjectValue.GetBufferLength())
-  str64 = o.ObjectValue.GetBuffer()
-  ret = base64_decode(strbin,lenbin,str64,o.ObjectValue.GetBufferLength())
-  IF ret = ERR_BASE64_INVALID_CHARACTER
-    DISPOSE(strbin)
-    DISPOSE(str64)
-    RETURN ''
-  .
-  IF ret = ERR_BASE64_BUFFER_TOO_SMALL
-    DISPOSE(strbin)
-    strbin &= NEW STRING( SIZE(lenbin))
-    ret = base64_decode(strbin,lenbin,str64,o.ObjectValue.GetBufferLength())
-  .
-  buf.Set(strbin[1 : lenbin])
-  DISPOSE(strbin)
-  DISPOSE(str64)
-  RETURN buf.GetBuffer()
+JSONObject.GetPropertyBinaryValue   procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,STRING
+o                                     &JSONObject
+  CODE
+  o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
+  if ~o &= NULL
+    return o.GetBinaryValue()
+  end
+  return ''
 
 JSONObject.GetPropertyDateValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+o                                   &JSONObject
   CODE
-  return DEFORMAT(SUB(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed),1,10),@D10)
+  o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
+  if ~o &= NULL
+    return o.GetDateValue()
+  end
+  return 0
 
 JSONObject.GetPropertyTimeValue  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+o                                   &JSONObject
   CODE
-  return DEFORMAT(SUB(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed),12,8),@T04)
+  o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
+  if ~o &= NULL
+    return o.GetTimeValue()
+  end
+  return 0
+
+JSONObject.GetPropertyTimeZoneValue procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,LONG
+o                                 &JSONObject
+  CODE
+  o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
+  if ~o &= NULL
+    return o.GetTimeZoneValue()
+  end
+  return 0
 
 JSONObject.GetPropertyUtf8Value  procedure(STRING propname, LONG nDeeperLevelsAllowed = 99999)!,STRING
-buf  BufferClass
+o                                   &JSONObject
   CODE
-  buf.Set(SELF.GetPropertyValue(propname,nDeeperLevelsAllowed))
-  if buf.ConvertFromUtf8() then
-    buf.Replace('\n','<10>')
-    buf.Replace('\r','<13>')
-    buf.Replace('\t','<9>')
-    return buf.GetBuffer()
-  .
+  o &= SELF.GetObjectByName(propName, nDeeperLevelsAllowed)
+  if ~o &= NULL
+    return o.GetUtf8Value()
+  end
   return ''
 
 JSONObject.Stringify procedure(*BufferClass buf, BYTE format = false, LONG level = 0)
@@ -557,7 +576,7 @@ TmpBuffer                                 &BufferClass
   LOOP c = 1 to 2
     cChar = CHOOSE(c=1, '\', '"')
             
-    nPos = TmpBuffer.IndexOf(cChar,1,1)
+    nPos = TmpBuffer.IndexOf(cChar)
     LOOP WHILE nPos > 0
       l = TmpBuffer.GetBufferLength()
       startPos = nPos + 1
@@ -591,7 +610,7 @@ len64 ULONG
   buf.Add(str64[1 : len64])
   DISPOSE(str64)
 
-JSONObject.FillStructure    procedure(*GROUP g)
+JSONObject.FillStructure    procedure(*GROUP g,LONG pUtf8 = 1)
 o                     &JSONObject
 c                     LONG
 fields                LONG
@@ -607,37 +626,58 @@ nIndex                          LONG
    
     PropertyName  &= NEW BufferClass()
     c = 0
-    LOOP !c = 1 to fields
-      c += 1
+    LOOP! c = 1 to fields
+      c += 1  
       f &= WHAT(g,c)
-      if f &= NULL
-        BREAK
-      end!If
-      if ~ISSTRING(f)
-        lt = LiteralType:Numeric
-      ELSE
-        lt = LiteralType:String
-      end!if
+      if f &= NULL then break.
       PropertyName.Set(WHO(g,c))
-      nPos = PropertyName.IndexOf(':',1,1)
-      if npos > 0
-        nIndex = SELF.GetIndexOf(PropertyName.GetBuffer(nPos+1))
-      else
-        nIndex = SELF.GetIndexOf(PropertyName.GetBuffer())
-      end!if
-      if nIndex > 0
+      if PropertyName.IndexOf('|JsonDontAssign',,,1) > 0 !caseInsensitive
+        cycle
+      end      
+      lt = WhoLiteralType(f,PropertyName)
+      nIndex = SELF.GetIndexOf(PropertyName.GetBuffer())
+      if nIndex
         o &= SELF.Get(nindex)
+        
+        
         if ISGROUP(g,c)
           gr &= GETGROUP(g,c)
-          o.FillStructure(gr)
+          o.FillStructure(gr,pUtf8)
+          c += GroupFieldsCount(gr)
         else
-          f = o.GetValue() 
+          case lt 
+            of LiteralType:String
+              if pUtf8
+                f = o.GetUtf8Value()
+              else                
+                f = o.GetValue()
+              end!if
+            of LiteralType:Binary
+              f = o.GetBinaryValue()
+            of LiteralType:DateTimeDatePart
+              f = o.GetDateValue()
+            of LiteralType:DateTimeTimePart
+              f = o.GetTimeValue()
+            of LiteralType:DateTimeTimeZonePart
+              f = o.GetTimeZoneValue()
+            of LiteralType:Boolean
+              f = o.GetBooleanValue()
+            else          
+              f = o.GetValue()
+          end!case      
         end!If
+
       end!if
     end!Loop
-    f &= NULL
+  f &= NULL
   
-JSONObject.FillStructure                procedure(*QUEUE q)
+  
+JSONObject.FillGroup    procedure(*GROUP g,LONG pUtf8 = 1)
+  CODE
+
+  SELF.FillStructure(g,pUtf8)
+  
+JSONObject.FillStructure                procedure(*QUEUE q,LONG pUtf8 = 1)
 itemCount                                 LONG
 i                                         LONG
 rec                                       &GROUP
@@ -652,20 +692,73 @@ o                                         &JSONObject
       CLEAR(q)
       o &= SELF.get(i,false)
       if ~o &= NULL
-        o.FillStructure(rec)
+        o.FillStructure(rec,pUtf8)
         ADD(q)
       end!if    
     end!Loop
   end!if
 
-GroupFieldsCount procedure(*GROUP g)
-n LONG
+JSONObject.FillQueue    procedure(*QUEUE q,LONG pUtf8 = 1)
+  CODE
+  
+  SELF.FillStructure(q,pUtf8)
+  
+GroupFieldsCount    PROCEDURE(*GROUP grp)!,LONG
+n                     LONG
   CODE
   n = 1
   LOOP
-    if not who(g,n+1)
+    if not who(grp,n+1)
       BREAK
     end
     n += 1
   .
   RETURN n
+
+WhoLiteralType      PROCEDURE(ANY pVal,BufferClass pName)!,LONG
+lt                    LONG
+nPos                  LONG
+  CODE
+  
+  lt = LiteralType:String
+  
+  if NOT ISSTRING(pVal)
+    lt = LiteralType:Numeric
+  end!if
+  
+  nPos = pName.IndexOf(':')
+  if npos > 0
+    pName.Set(pName.GetBuffer(nPos+1))
+  end
+  if FindAndDeleteAttribute(pName,'|JsonBinary')
+    lt = LiteralType:Binary
+  end
+  if FindAndDeleteAttribute(pName,'|JsonBoolean')
+    lt = LiteralType:Boolean
+  end
+  if FindAndDeleteAttribute(pName,'|JsonDate')
+    lt = LiteralType:DateTimeDatePart
+  end
+  if FindAndDeleteAttribute(pName,'|JsonTime')
+    lt = LiteralType:DateTimeTimePart
+  end
+  if FindAndDeleteAttribute(pName,'|JsonTZ')
+    lt = LiteralType:DateTimeTimeZonePart
+  end
+  if FindAndDeleteAttribute(pName,'|JsonOmit')
+    lt = LiteralType:OmitField
+  end
+
+  return lt
+    
+FindAndDeleteAttribute  PROCEDURE(BufferClass pBuf,STRING pAttr)!,LONG
+lt                        LONG
+nPos                      LONG
+  CODE
+  nPos = pBuf.IndexOf(pAttr,,,1) !caseInsensitive
+  if npos > 0
+    pBuf.Replace(pAttr,'')
+    return true
+  end!if
+  return false
+  
