@@ -28,7 +28,7 @@ Buf                         STRING(1024)
 
 BufferClass.Construct       procedure()  !added to eliminate use of init and kill
     CODE
-        SELF.SetSize(1000)
+        SELF.SetSize(100)
         
 BufferClass.Destruct            procedure()
     CODE
@@ -71,7 +71,6 @@ NewBuffer &STRING
 
 BufferClass.Add     procedure(STRING s)
 len LONG
-b byte
   CODE
   len = len(s)
   if SELF.Position + len > SELF.BufferSize
@@ -276,9 +275,12 @@ startPos                LONG
     CLOSE(SaveFile)
     return bResult
         
-BufferClass.IndexOf procedure(STRING substr, LONG nStep = 1, LONG nStart = 1)
+BufferClass.IndexOf procedure(STRING substr, LONG nStep = 1, LONG nStart = 1,LONG caseInsensitive = 0)!,LONG
     CODE
-    return INSTRING(substr,SELF.GetBuffer(),nStep,nStart)
+    if caseInsensitive
+      return INSTRING(UPPER(substr),UPPER(SELF.GetBuffer()),nStep,nStart)
+    end    
+    return INSTRING(substr,SELF.GetBuffer(),nStep,nStart) 
     
 BufferClass.Replace                     procedure(STRING toReplace, STRING strReplace)
 r                                         LONG

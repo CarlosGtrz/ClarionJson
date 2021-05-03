@@ -20,7 +20,7 @@ SetPartialBuffer                          procedure(LONG fromPos, LONG toPos, ST
 Set                                       procedure(STRING s)
 Reset                                     procedure()
 
-IndexOf                                   procedure(STRING substr,LONG nStep = 1, LONG nStart = 1),LONG
+IndexOf                                   procedure(STRING substr, LONG nStep = 1, LONG nStart = 1,LONG caseInsensitive = 0),LONG
 Replace                                   procedure(STRING toReplace, STRING strReplace)
 Insert                                    procedure(LONG atPos, STRING str)
 Fold                                      procedure(LONG width = 72)
