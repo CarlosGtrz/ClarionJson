@@ -1,0 +1,18 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+# Clarion 2.1.0.2447
+Project("{12B76EC0-1D7B-4FA7-A7D0-C524288B48A1}") = "TestJSON", "TestJSON.cwproj", "{D77891DF-1E1B-4468-9E97-BACE2058E109}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D77891DF-1E1B-4468-9E97-BACE2058E109}.Debug|Win32.Build.0 = Debug|Win32
+		{D77891DF-1E1B-4468-9E97-BACE2058E109}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D77891DF-1E1B-4468-9E97-BACE2058E109}.Release|Win32.Build.0 = Release|Win32
+		{D77891DF-1E1B-4468-9E97-BACE2058E109}.Release|Win32.ActiveCfg = Release|Win32
+	EndGlobalSection
+EndGlobal
