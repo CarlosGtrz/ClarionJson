@@ -348,7 +348,7 @@ JSONObject.GetTimeValue procedure()
 JSONObject.GetTimeZoneValue procedure()
 buf BufferClass
   CODE
-  buf.Set(DEFORMAT(SUB(SELF.GetValue(),20,6),@D10))
+  buf.Set(SUB(SELF.GetValue(),20,6))
   buf.Replace(':','')
   return buf.GetBuffer()
 
